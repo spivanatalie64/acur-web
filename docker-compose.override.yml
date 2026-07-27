@@ -1,0 +1,36 @@
+---
+services:
+  ca:
+    volumes:
+      - ./data:/data
+      - step:/root/.step
+
+  git:
+    volumes:
+      - git_data:/aurweb/aur.git
+      - ./data:/aurweb/data
+
+  smartgit:
+    volumes:
+      - git_data:/aurweb/aur.git
+      - ./data:/data
+      - smartgit_run:/var/run/smartgit
+
+  fastapi:
+    volumes:
+      - ./data:/data
+      - ./aurweb:/aurweb/aurweb
+      - ./migrations:/aurweb/migrations
+      - ./test:/aurweb/test
+      - ./templates:/aurweb/templates
+      - ./schema:/aurweb/schema
+
+  nginx:
+    volumes:
+      - ./data:/data
+      - archives:/var/lib/aurweb/archives
+      - smartgit_run:/var/run/smartgit
+
+  mariadb:
+    volumes:
+      - ./schema:/aurweb/schema

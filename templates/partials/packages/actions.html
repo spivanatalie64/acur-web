@@ -1,0 +1,156 @@
+<!--
+    This partial requires pkgbase.Name to render
+-->
+<div id="detailslinks" class="listing">
+    <div id="actionlist">
+        <h4>{{ "Package Actions" | tr }}</h4>
+        <ul class="small">
+            <li>
+                <a href="{{ config.get('options', 'source_file_uri') | format("PKGBUILD", pkgbase.Name | quote_plus) }}">
+                    {{ "View PKGBUILD" | tr }}
+                </a>
+                /
+                <a href="{{ config.get('options', 'log_uri') | format(pkgbase.Name | quote_plus) }}">
+                    {{ "View Changes" | tr }}
+                </a>
+            </li>
+            <li>
+                <a href="{{ config.get('options', 'snapshot_uri') | format(pkgbase.Name | quote_plus) }}">
+                    {{ "Download snapshot" | tr }}
+                </a>
+            </li>
+            <li>
+                <a href="https://wiki.archlinux.org/title/Special:Search?{{ { 'search': pkgbase.Name } | urlencode }}">
+                    {{ "Search wiki" | tr }}
+                </a>
+            </li>
+			{% if out_of_date %}
+				<li>
+					<span class="flagged">
+						<a href="/pkgbase/{{ pkgbase.Name }}/flag-comment">
+							{{
+							"Flagged out-of-date (%s)"
+							| tr | format(date_strftime(pkgbase.OutOfDateTS, "%Y-%m-%d"))
+							}}
+						</a>
+					</span>
+				</li>
+				{% if request.user.has_credential(creds.PKGBASE_UNFLAG, approved=unflaggers) %}
+					<li>
+						<form action="/pkgbase/{{ pkgbase.Name }}/unflag" method="post">
+							<input class="button text-button"
+								   type="submit"
+								   name="do_UnFlag"
+								   value="{{ 'Unflag package' | tr }}"
+							/>
+						</form>
+					</li>
+				{% endif %}
+			{% endif %}
+			{% if request.user.is_authenticated() %}
+				{% if not out_of_date %}
+					<li>
+						<a href="/pkgbase/{{ pkgbase.Name }}/flag">
+							{{ "Flag package out-of-date" | tr }}
+						</a>
+					</li>
+				{% endif %}
+                <li>
+                    {% if not voted %}
+                    <form action="/pkgbase/{{ pkgbase.Name }}/vote" method="post">
+                        <input type="submit"
+                               class="button text-button"
+                               name="do_Vote"
+                               value="{{ 'Vote for this package' | tr }}" />
+                    </form>
+                    {% else %}
+                    <form action="/pkgbase/{{ pkgbase.Name }}/unvote" method="post">
+                       <input type="submit"
+                              class="button text-button"
+                              name="do_UnVote"
+                              value="{{ 'Remove vote' | tr }}" />
+                    </form>
+                    {% endif %}
+                </li>
+                <li>
+                    {% if notified %}
+                        <form action="/pkgbase/{{ pkgbase.Name }}/unnotify" method="post">
+                            <input type="submit"
+                                   class="button text-button"
+                                   name="do_UnNotify"
+                                   value="{{ 'Disable notifications' | tr }}"
+                            />
+                        </form>
+                    {% else %}
+                        <form action="/pkgbase/{{ pkgbase.Name }}/notify" method="post">
+                            <input type="submit"
+                                   class="button text-button"
+                                   name="do_Notify"
+                                   value="{{ 'Enable notifications' | tr }}"
+                            />
+                        </form>
+                    {% endif %}
+                </li>
+            {% endif %}
+            {% if request.user.has_credential(creds.PKGBASE_EDIT_COMAINTAINERS, approved=[pkgbase.Maintainer]) %}
+                <li>
+                    <a href="/pkgbase/{{ pkgbase.Name }}/comaintainers">
+                        {{ "Manage Co-Maintainers" | tr }}
+                    </a>
+                </li>
+            {% endif %}
+            {% if requests %}
+                {% if request.user.has_credential(creds.PKGREQ_LIST) %}
+                    <li>
+                        <a class="flagged" href="/requests?filter_pkg_name={{ pkgbase.Name }}">
+                            {{ requests | tn("%d pending request", "%d pending requests") | format(requests) }}
+                        </a>
+                    </li>
+                {% else %}
+                    <li>
+                        <span class="flagged">
+                            {{ requests | tn("%d pending request", "%d pending requests") | format(requests) }}
+                        </span>
+                    </li>
+                {% endif %}
+            {% endif %}
+            {% if request.user.is_authenticated() %}
+                <li>
+                    <a href="/pkgbase/{{ pkgbase.Name }}/request?{{ {'next': '/pkgbase/%s' | format(pkgbase.Name)} | urlencode }}">
+                        {{ "Submit Request" | tr }}
+                    </a>
+                </li>
+            {% endif %}
+            {% if request.user.has_credential(creds.PKGBASE_DELETE) %}
+                <li>
+                    <a href="/pkgbase/{{ pkgbase.Name }}/delete?next=/packages">
+                        {{ "Delete Package" | tr }}
+                    </a>
+                </li>
+            {% endif %}
+            {% if request.user.has_credential(creds.PKGBASE_MERGE) %}
+                <li>
+                    <a href="/pkgbase/{{ pkgbase.Name }}/merge">
+                        {{ "Merge Package" | tr }}
+                    </a>
+                </li>
+            {% endif %}
+            {% if not pkgbase.Maintainer %}
+                <li>
+                    <form action="/pkgbase/{{ pkgbase.Name }}/adopt" method="post">
+                        <input type="submit"
+                               class="button text-button"
+                               value="{{ 'Adopt Package' | tr }}"
+                        />
+                    </form>
+                </li>
+            {% elif request.user.has_credential(creds.PKGBASE_DISOWN, approved=[pkgbase.Maintainer] + comaintainers) %}
+                <li>
+                    <a href="/pkgbase/{{ pkgbase.Name }}/disown?{{ {'next': '/pkgbase/%s' | format(pkgbase.Name)} | urlencode }}">
+                        {{ "Disown Package" | tr }}
+                    </a>
+                </li>
+            {% endif %}
+        </ul>
+    </div>
+</div>

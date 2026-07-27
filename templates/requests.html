@@ -1,0 +1,211 @@
+{% extends "partials/layout.html" %}
+
+{% set singular = "%d package request found." %}
+{% set plural = "%d package requests found." %}
+
+{% block pageContent %}
+    <div class="box">
+        <h2>{{ "Requests" | tr }}</h2>
+        <h3>{{ "Total Statistics" | tr }}</h3>
+        <table class="no-width">
+            <tbody>
+            <tr>
+                <td>{{ "Total" | tr }}:</td>
+                <td>{{ total_requests }}</td>
+            </tr>
+            <tr>
+                <td>{{ "Pending" | tr }}:</td>
+                <td>{{ pending_requests }}</td>
+            </tr>
+            <tr>
+                <td>{{ "Closed" | tr }}:</td>
+                <td>{{ closed_requests }}</td>
+            </tr>
+            <tr>
+                <td>{{ "Accepted" | tr }}:</td>
+                <td>{{ accepted_requests }}</td>
+            </tr>
+            <tr>
+                <td>{{ "Rejected" | tr }}:</td>
+                <td>{{ rejected_requests }}</td>
+            </tr>
+            </tbody>
+        </table>
+        <h3>{{ "Filters" | tr }}</h3>
+        <div class="box filter-criteria">
+            <form id="todolist_filter" method="get" action="/requests">
+                <fieldset>
+                    <legend>{{ "Select filter criteria" | tr }}</legend>
+                    <div>
+                        <label for="id_filter_pending" title="Pending">{{ "Pending" | tr }}</label>
+                        <input type="checkbox" name="filter_pending" id="id_filter_pending" value="True" {{ "checked" if
+                        filter_pending == true }}/>
+                    </div>
+                    <div>
+                        <label for="id_filter_closed" title="Closed">{{ "Closed" | tr }}</label>
+                        <input type="checkbox" name="filter_closed" id="id_filter_closed" value="True" {{ "checked" if
+                        filter_closed == true }}/>
+                    </div>
+                    <div>
+                        <label for="id_filter_accepted" title="Accepted">{{ "Accepted" | tr }}</label>
+                        <input type="checkbox" name="filter_accepted" id="id_filter_accepted" value="True" {{ "checked" if
+                        filter_accepted == true }}/>
+                    </div>
+                    <div>
+                        <label for="id_filter_rejected" title="Rejected">{{ "Rejected" | tr }}</label>
+                        <input type="checkbox" name="filter_rejected" id="id_filter_rejected" value="True" {{ "checked" if
+                        filter_rejected == true }}/>
+                    </div>
+                    <div>
+                        <label for="id_filter_maintainer_requests" title="Maintainer's requests">{{ "Maintainer's requests" | tr }}</label>
+                        <input type="checkbox" name="filter_maintainer_requests" id="id_filter_maintainer_requests"
+                               value="True" {{ "checked" if filter_maintainer_requests == true }}/>
+                    </div>
+                    <div>
+                        <label for="id_filter_pkg_name" title="Package name">{{ "Package name" | tr }}</label>
+                        <input type="text" name="filter_pkg_name" id="id_filter_pkg_name" autocomplete="off"
+                               value="{{ filter_pkg_name if filter_pkg_name }}"/>
+                    </div>
+                    <div>
+                        <br/>
+                        <input type="submit" class="button" name="filter" value="{{ 'Filter' | tr }}"></input>
+                    </div>
+                </fieldset>
+            </form>
+        </div>
+    </div>
+    <div id="pkglist-results" class="box">
+        {% if not total %}
+            <p>{{ "No requests matched your search criteria." | tr }}</p>
+        {% else %}
+            {% include "partials/pager.html" %}
+            <table class="results">
+                <thead>
+                    <tr>
+                        <th>{{ "Package" | tr }}</th>
+                        <th>{{ "Type" | tr }}</th>
+                        <th>{{ "Comments" | tr }}</th>
+                        <th>{{ "Filed by" | tr }}</th>
+                        <th>{{ "Date" | tr }}</th>
+                        <th>{{ "Status" | tr }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for result in results %}
+                        <tr>
+                            {% if result.PackageBase %}
+                                {# If the PackageBase still exists, link to it. #}
+                                <td>
+                                    <a href="/pkgbase/{{ result.PackageBaseName }}">
+                                        {{ result.PackageBaseName }}
+                                    </a>
+                                </td>
+                            {% else %}
+                                {# Otherwise, just display PackageBaseName unlinked. #}
+                                <td>{{ result.PackageBaseName }}</td>
+                            {% endif %}
+                            {# Type #}
+                            <td>
+                                {{ result.RequestType.name_display() | tr }}
+                                {# If the RequestType is a merge and request.MergeBaseName is valid... #}
+                                {% if result.RequestType.ID == 3 and result.MergeBaseName %}
+                                    <a href="/pkgbase/{{ result.MergeBaseName }}">
+                                        ({{ result.MergeBaseName }})
+                                    </a>
+                                {% endif %}
+                            </td>
+                            {# Comments #}
+                            <td class="wrap">{{ result.Comments }}</td>
+                            <td>
+                                {# Filed by #}
+                                {# If the record has an associated User, display a link to that user. #}
+                                {# Otherwise, display "(deleted)". #}
+                                {% if result.User %}
+                                    <a href="/account/{{ result.User.Username }}">
+                                        {{ result.User.Username }}
+                                    </a>
+                                {% else %}
+                                    <i>(deleted)</i>
+                                {% endif %}
+                                &nbsp;
+                                <a target="_blank" rel="noopener noreferrer" href="{{ result.ml_message_url() }}">
+                                    (PRQ#{{ result.ID }})
+                                </a>
+                            </td>
+                            {% set idle_time = config_getint("options", "request_idle_time") %}
+                            {% set time_delta = (utcnow - result.RequestTS) | int %}
+
+                            {% set due = result.Status == 0 and time_delta > idle_time %}
+                            <td
+                                {% if due %}
+                                class="flagged"
+                                {% endif %}
+                            >
+                                {# Date #}
+                                {{ datetime_display(result.RequestTS) }}
+                            </td>
+                            <td>
+                                {# Status #}
+                                {% if result.Status == 0 %}
+                                    {% set temp_q = { "next": "/requests" } %}
+
+                                    {% if result.RequestType.ID == 1 %}
+                                        {% set action = "delete" %}
+                                    {% elif result.RequestType.ID == 2 %}
+                                        {% set action = "disown" %}
+                                    {% elif result.RequestType.ID == 3 %}
+                                        {% set action = "merge" %}
+                                        {# Add the 'via' url query parameter. #}
+                                        {% set temp_q = temp_q | extend_query(
+                                            ["into", result.MergeBaseName]
+                                        ) %}
+                                    {% endif %}
+
+                                    {% if request.user.is_elevated() and not result.ClosedTS %}
+                                        {#
+                                        If RequestType is an orphan and it's not yet due, it's locked
+                                        to allow the maintainer time to react to such a request.
+
+                                        On request, orphans are locked for two weeks.
+                                        #}
+                                        {% if result.RequestType.ID == 2 and not due %}
+                                            {% set time_left = idle_time - time_delta %}
+                                            {% if time_left > 48 * 3600 %}
+                                                {% set n = round(time_left / (24 * 3600)) %}
+                                                {% set time_left_fmt = (n | tn("~%d day left", "~%d days left") | format(n)) %}
+                                            {% elif time_left > 3600 %}
+                                                {% set n = round(time_left / 3600) %}
+                                                {% set time_left_fmt = (n | tn("~%d hour left", "~%d hours left") | format(n)) %}
+                                            {% else %}
+                                                {% set time_left_fmt = ("<1 hour left" | tr) %}
+                                            {% endif %}
+                                            {{ "Locked" | tr }}
+                                            ({{ time_left_fmt }})
+                                        {% else %}
+                                            {# Only elevated users (PM or Dev) are allowed to accept requests. #}
+                                            <a href="/pkgbase/{{ result.PackageBaseName }}/{{ action }}?{{ temp_q | urlencode }}">
+                                                {{ "Accept" | tr }}
+                                            </a>
+                                        {% endif %}
+                                        <br />
+                                    {% endif %}
+                                    {% if not result.ClosedTS %}
+                                        <a href="/requests/{{ result.ID }}/close">
+                                            {{ "Close" | tr }}
+                                        </a>
+                                    {% endif %}
+                                {% else %}
+                                    {{ result.status_display() }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% include "partials/pager.html" %}
+        {% endif %}
+    </div>
+
+<!-- Bootstrap typeahead for requests page. -->
+<script type="text/javascript" src="/static/js/typeahead-requests.js"></script>
+{% endblock %}

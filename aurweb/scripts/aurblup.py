@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+
+import re
+
+import pyalpm
+from sqlalchemy import and_
+
+import aurweb.config
+from aurweb import db, util
+from aurweb.models import OfficialProvider
+
+
+def _main(force: bool = False):
+    blacklist = set()
+    providers = set()
+    repomap = {}
+
+    db_path = aurweb.config.get("aurblup", "db-path")
+    sync_dbs = aurweb.config.get("aurblup", "sync-dbs").split(" ")
+    server = aurweb.config.get("aurblup", "server")
+
+    h = pyalpm.Handle("/", db_path)
+    for sync_db in sync_dbs:
+        repo = h.register_syncdb(sync_db, pyalpm.SIG_DATABASE_OPTIONAL)
+        repo.servers = [server.replace("%s", sync_db)]
+        t = h.init_transaction()
+        repo.update(force)
+        t.release()
+
+        for pkg in repo.pkgcache:
+            blacklist.add(pkg.name)
+            util.apply_all(pkg.replaces, blacklist.add)
+            providers.add((pkg.name, pkg.name))
+            repomap[(pkg.name, pkg.name)] = repo.name
+            for provision in pkg.provides:
+                provisionname = re.sub(r"(<|=|>).*", "", provision)
+                providers.add((pkg.name, provisionname))
+                repomap[(pkg.name, provisionname)] = repo.name
+
+    with db.begin():
+        old_providers = set(
+            db.query(OfficialProvider)
+            .with_entities(
+                OfficialProvider.Name.label("Name"),
+                OfficialProvider.Provides.label("Provides"),
+            )
+            .distinct()
+            .order_by("Name")
+            .all()
+        )
+
+        # delete providers not existing in any of our alpm repos
+        for name, provides in old_providers.difference(providers):
+            db.delete_all(
+                db.query(OfficialProvider).filter(
+                    and_(
+                        OfficialProvider.Name == name,
+                        OfficialProvider.Provides == provides,
+                    )
+                )
+            )
+
+        # add new providers that do not yet exist in our DB
+        for name, provides in providers.difference(old_providers):
+            repo = repomap.get((name, provides))
+            db.create(OfficialProvider, Name=name, Repo=repo, Provides=provides)
+
+        # update providers where a pkg was moved from one repo to another
+        all_providers = db.query(OfficialProvider)
+
+        for op in all_providers:
+            new_repo = repomap.get((op.Name, op.Provides))
+
+            if op.Repo != new_repo:
+                op.Repo = new_repo
+
+
+def main(force: bool = False):
+    db.get_engine()
+    _main(force)
+
+
+if __name__ == "__main__":
+    main()

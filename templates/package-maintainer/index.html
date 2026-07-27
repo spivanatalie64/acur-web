@@ -1,0 +1,51 @@
+{% extends "partials/layout.html" %}
+
+{% block pageContent %}
+    <div class="box">
+        <h2>{{ "Statistics" | tr }}</h2>
+        <table class="no-width">
+            <tbody>
+                <tr>
+                    <td>{{ "Total" | tr }} {{ "Package Maintainers" | tr }}:</td>
+                    <td>{{ package_maintainer_count }}</td>
+                </tr>
+                <tr>
+                    <td>{{ "Active" | tr }} {{ "Package Maintainers" | tr }}:</td>
+                    <td>{{ active_package_maintainer_count }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    {%
+        with table_class = "current-votes",
+        total_votes = current_votes_count,
+        results = current_votes,
+        off_param = "coff",
+        by_param = "cby",
+        by_next = current_by_next,
+        title = "Current Votes",
+        off = current_off,
+        by = current_by
+    %}
+        {% include "partials/package-maintainer/proposals.html" %}
+    {% endwith %}
+
+    {%
+        with table_class = "past-votes",
+        total_votes = past_votes_count,
+        results = past_votes,
+        off_param = "poff",
+        by_param = "pby",
+        by_next = past_by_next,
+        title = "Past Votes",
+        off = past_off,
+        by = past_by
+    %}
+        {% include "partials/package-maintainer/proposals.html" %}
+    {% endwith %}
+
+    {% with title = "Last Votes by Package Maintainer", votes = last_votes_by_pm %}
+        {% include "partials/package-maintainer/last_votes.html" %}
+    {% endwith %}
+{% endblock %}

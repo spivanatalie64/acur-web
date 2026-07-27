@@ -1,0 +1,194 @@
+[database]
+backend = mysql
+host = localhost
+socket = /var/run/mysqld/mysqld.sock
+;port = 3306
+name = AUR
+user = aur
+;password = aur
+
+[options]
+username_min_len = 3
+username_max_len = 16
+passwd_min_len = 8
+; Reject registration/email changes that use a known disposable
+; email provider (https://github.com/disposable-email-domains).
+disposable_email_check = 1
+default_lang = en
+default_timezone = UTC
+sql_debug = 0
+; 15 seconds - default license_check_timeout
+license_check_timeout = 15
+; 4 hours - default login_timeout
+login_timeout = 14400
+; 30 days - default persistent_cookie_timeout
+persistent_cookie_timeout = 2592000
+; 400 days - default permanent_cookie_timeout
+permanent_cookie_timeout = 34560000
+max_filesize_uncompressed = 8388608
+disable_http_login = 1
+aur_location = https://aur.archlinux.org
+git_clone_uri_anon = https://aur.archlinux.org/%s.git
+git_clone_uri_priv = ssh://aur@aur.archlinux.org/%s.git
+max_rpc_results = 5000
+max_search_results = 2500
+max_depends = 1000
+aur_request_ml = aur-requests@lists.archlinux.org
+ml_thread_url = https://lists.archlinux.org/archives/list/aur-requests@lists.archlinux.org/thread/%s
+request_idle_time = 1209600
+request_archive_time = 15552000
+auto_orphan_age = 15552000
+auto_delete_age = 86400
+source_file_uri = /cgit/aur.git/tree/%s?h=%s
+log_uri = /cgit/aur.git/log/?h=%s
+commit_uri = /cgit/aur.git/commit/?h=%s&id=%s
+snapshot_uri = /cgit/aur.git/snapshot/%s.tar.gz
+enable-maintenance = 1
+maintenance-exceptions = 127.0.0.1
+render-comment-cmd = /usr/bin/aurweb-rendercomment
+localedir = /srv/http/aurweb/web/locale/
+; cache: redis is supported in Python.
+cache = none
+cache_pkginfo_ttl = 86400
+salt_rounds = 12
+redis_address = redis://localhost
+; Toggles traceback display in templates/errors/500.html.
+traceback = 0
+; Maximum number of characters for a comment
+max_chars_comment = 5000
+pkgctl_executable = /usr/bin/pkgctl
+; email verification token in seconds - 1 day
+email_verification_ttl = 86400
+; email verification cooldown in seconds - 10 minutes
+email_verification_cooldown = 600
+
+[ratelimit]
+request_limit = 4000
+window_length = 86400
+; Force-utilize cache for ratelimiting. In FastAPI, forced cache (1)
+; will cause the ratelimit path to use a real or fake Redis instance
+; depending on the configured options.cache setting. Otherwise,
+; cache will be ignored and the database will be used.
+cache = 1
+
+[notifications]
+notify-cmd = /usr/bin/aurweb-notify
+sendmail =
+smtp-server = localhost
+smtp-port = 25
+smtp-use-ssl = 0
+smtp-use-starttls = 0
+smtp-user =
+smtp-password =
+smtp-timeout = 60
+sender = notify@aur.archlinux.org
+reply-to = noreply@aur.archlinux.org
+
+; Gitlab instance base URL. We use this instance to report
+; server errors in the form of confidential issues (see error-project).
+gitlab-instance = https://gitlab.archlinux.org
+
+; Project URI which will received confidential issues about
+; various server details like uncaught exceptions.
+; Errors reported will be filed using the 'triage' label, and so
+; the 'triage' label must exist in any project URI given.
+;
+; - must be a valid project URI on notifications.error-repository
+; - must contain a 'triage' label
+;
+error-project = set-me
+
+; Gitlab access token with API privileges to post
+; notifications.error-project issues.
+error-token = set-me
+
+[fingerprints]
+Ed25519 = SHA256:HQ03dn6EasJHNDlt51KpQpFkT3yBX83x7BoIkA1iv2k
+ECDSA = SHA256:L71Q91yHwmHPYYkJMDgj0xmUuw16qFOhJbBr1mzsiOI
+RSA = SHA256:Ju+yWiMb/2O+gKQ9RJCDqvRg7l+Q95KFAeqM5sr6l2s
+
+[auth]
+; For U2F key prefixes, see the following documentation from openssh:
+; https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.u2f
+valid-keytypes = ssh-rsa ssh-dss ecdsa-sha2-nistp256 ecdsa-sha2-nistp384 ecdsa-sha2-nistp521 ssh-ed25519 sk-ecdsa-sha2-nistp256@openssh.com sk-ecdsa-sha2-nistp256-cert-v01@openssh.com sk-ssh-ed25519@openssh.com sk-ssh-ed25519-cert-v01@openssh.com
+username-regex = [a-zA-Z0-9]+[.\-_]?[a-zA-Z0-9]+$
+git-serve-cmd = /usr/bin/aurweb-git-serve
+ssh-options = restrict
+
+[sso]
+openid_configuration =
+client_id =
+client_secret =
+
+[fastapi]
+session_secret =
+
+[serve]
+repo-path = /srv/http/aurweb/aur.git/
+repo-regex = [a-z0-9][a-z0-9.+_-]*$
+git-shell-cmd = /usr/bin/git-shell
+git-update-cmd = /usr/bin/aurweb-git-update
+ssh-cmdline = ssh aur@aur.archlinux.org
+
+[update]
+max-blob-size = 256000
+; Whether to use the new python-alpm .SRCINFO parser.
+alpm-parser = 0
+
+[aurblup]
+db-path = /srv/http/aurweb/aurblup/
+sync-dbs = core-testing extra-testing multilib-testing core extra multilib
+server = https://mirrors.kernel.org/archlinux/%s/os/x86_64
+
+[mkpkglists]
+archivedir = /srv/http/aurweb/archives
+packagesfile = /srv/http/aurweb/archives/packages.gz
+packagesmetafile = /srv/http/aurweb/archives/packages-meta-v1.json.gz
+packagesmetaextfile = /srv/http/aurweb/archives/packages-meta-ext-v1.json.gz
+pkgbasefile = /srv/http/aurweb/archives/pkgbase.gz
+userfile = /srv/http/aurweb/archives/users.gz
+
+[git-archive]
+author = git_archive.py
+author-email = no-reply@archlinux.org
+
+; One week worth of seconds (86400 * 7)
+popularity-interval = 604800
+
+metadata-repo = /srv/http/aurweb/metadata.git
+users-repo = /srv/http/aurweb/users.git
+pkgbases-repo = /srv/http/aurweb/pkgbases.git
+pkgnames-repo = /srv/http/aurweb/pkgnames.git
+
+[devel]
+; commit_url is a format string used to produce a link to a commit hash.
+commit_url = https://gitlab.archlinux.org/archlinux/aurweb/-/commits/%s
+
+; If commit_hash is configured, a link to the commit based on commit_url
+; will be displayed in aurweb's footer with the release version.
+; This allows us to diagnose which commit a particular instance is on
+; during testing of development branches.
+; Example deployment configuration step:
+; sed -r "s/^;?(commit_hash) =.*$/\1 = $(git rev-parse HEAD)/" config
+;commit_hash = 1234567
+
+[votereminder]
+; Offsets used to determine when Package Maintainers should be reminded about
+; votes that they should make.
+; Reminders will be sent out for all votes that a Package Maintainer has not yet
+; voted on based on `now + range_start <= End <= now + range_end`.
+range_start = 500
+range_end = 172800
+
+[cache]
+; maximum number of keys/entries (for search results) in our redis cache, default is 50000
+max_search_entries = 50000
+; number of seconds after a cache entry for search queries expires, default is 10 minutes
+expiry_time_search = 600
+; number of seconds after a cache entry for statistics queries expires, default is 5 minutes
+expiry_time_statistics = 300
+; number of seconds after a cache entry for rss queries expires, default is 5 minutes
+expiry_time_rss = 300
+
+[tracing]
+otlp_endpoint = http://localhost:4318/v1/traces

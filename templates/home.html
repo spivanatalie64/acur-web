@@ -1,0 +1,37 @@
+<div id="intro" class="box">
+    <h2>AUR  {% trans %}Home{% endtrans %}</h2>
+    <p>
+        {{ "Welcome to the AUR! Please read the %sAUR User Guidelines%s for more information and the %sAUR Submission Guidelines%s if you want to contribute a PKGBUILD."
+            | tr
+            | format('<a href="https://wiki.archlinux.org/title/AUR_User_Guidelines">', "</a>",
+                     '<a href="https://wiki.archlinux.org/title/AUR_submission_guidelines">', "</a>")
+            | safe
+        }}
+        {{ "Contributed PKGBUILDs %smust%s conform to the %sArch Packaging Standards%s otherwise they will be deleted!"
+            | tr
+	    | format("<strong>", "</strong>",
+		     '<a href="https://wiki.archlinux.org/title/Arch_Packaging_Standards">',
+		     "</a>")
+            | safe
+        }}
+        {% trans %}Remember to vote for your favourite packages!{% endtrans %}
+        {% trans %}Some packages may be provided as binaries in [extra].{% endtrans %}
+    </p>
+    <p class="important">
+        {% trans %}DISCLAIMER{% endtrans %}:
+        {% trans %}AUR packages are user produced content. Any use of the provided files is at your own risk.{% endtrans %}
+    </p>
+    <p class="readmore"><a href="https://wiki.archlinux.org/title/AUR">{% trans %}Learn more...{% endtrans %}</a></p>
+</div>
+<div id="news">
+    {% include 'partials/support.html' %}
+</div>
+
+<!-- Bootstrap typeahead for the homepage. -->
+<script type="text/javascript" src="/static/js/typeahead-home.js"></script>
+
+<!-- Stub inline javascript with a nonce. Used for testing purposes. -->
+<script type="text/javascript" nonce={{ request.user.nonce }}>
+function NONEXISTENT() {}
+NONEXISTENT();
+</script>

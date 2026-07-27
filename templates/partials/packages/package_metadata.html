@@ -1,0 +1,90 @@
+<div id="pkgdeps" class="listing">
+    <h3>{{ "Dependencies" | tr }} ({{ dependencies_count }})</h3>
+    <ul id="pkgdepslist">
+        {% for dep in dependencies %}
+            {% set provides = dependency_providers[dep.DepName] %}
+            <li>
+                {% set broken = dep.DepName not in aur_packages and dep.DepName not in official_packages %}
+                {% if broken %}
+                    {% if not provides %}
+                        <span class="broken">
+                    {% endif %}
+                {% else %}
+                    <a href="{{ dep.DepName | pkgname_link(aur_packages, official_packages) }}">
+                {% endif %}
+                    {{ dep.DepName }}
+                {%- if broken %}
+                    {% if not provides %}
+                        </span>
+                    {% endif %}
+                {% else -%}
+                    </a>
+                    {%- if dep.DepName in aur_packages -%}
+                        <sup><small>AUR</small></sup>
+                    {% endif %}
+                {% endif %}
+
+                {% if provides %}
+                    <em>({{ provides | provides_markup | safe }})</em>
+                {% endif %}
+
+                {% if dep.DepTypeID == 4 %}
+                    {# If this dependency type is an optdepends (id: 4). #}
+                    <em>{{ dep | dep_extra_desc }}</em>
+                {% else %}
+                    <em>{{ dep | dep_extra }}</em>
+                {% endif %}
+            </li>
+        {% endfor %}
+        {% if not all_deps and dependencies_count > max_listing %}
+            <li>
+                <a href="/packages/{{ package.Name }}?{{ q | extend_query(['all_deps', '1']) | urlencode }}#pkgdeps">
+                    {{ "Show %d more" | tr | format(dependencies_count - (dependencies | length)) }} {{ "dependencies" | tr }}...
+                </a>
+            </li>
+        {% endif %}
+    </ul>
+</div>
+
+<div id="pkgreqs" class="listing">
+    <h3>{{ "Required by" | tr }} ({{ required_by_count }})</h3>
+    <ul id="pkgreqslist">
+        {% for dep in required_by %}
+            <li>
+                <a href="{{ dep.Package | package_link }}">
+                    {{ dep.Package.Name }}
+                </a>
+
+                {% if dep.DepName != package.Name %}
+                    <span class="virtual-dep">
+                        ({{ "requires %s" | tr | format(dep.DepName) }})
+                    </span>
+                {% endif %}
+
+                <em>{{ dep | dep_extra }}</em>
+            </li>
+        {% endfor %}
+        {% if not all_reqs and required_by_count > max_listing %}
+            <li>
+                <a href="/packages/{{ package.Name }}?{{ q | extend_query(['all_reqs', '1']) | urlencode }}#pkgreqs">
+                    {{ "Show %d more" | tr | format(required_by_count - (required_by | length)) }}...
+                </a>
+            </li>
+        {% endif %}
+    </ul>
+</div>
+
+<div id="pkgfiles" class="listing">
+    <h3>{{ "Sources" | tr }} ({{ sources | length }})</h3>
+</div>
+
+<div>
+    <ul id="pkgsrcslist">
+        {% for src in sources %}
+            {% set file, uri = (src | source_uri) %}
+            <li>
+                <a href="{{ uri }}">{{ file }}</a>
+            </li>
+        {% endfor %}
+    </ul>
+</div>

@@ -1,0 +1,136 @@
+{% set reverse_order = "d" if SO == "a" else "a" %}
+
+<table {% if table_id %}id="{{ table_id }}"{% endif %} class="results">
+    <thead>
+        <tr>
+            {% if request.user.is_authenticated() %}
+                <th></th>
+            {% endif %}
+            <th>
+                {% if SB == "n" %}
+                    {% set order = reverse_order %}
+                {% else %}
+                    {% set order = SO %}
+                {% endif %}
+                <a href="/packages?{{ q | extend_query(('O', 0), ('SB', 'n'), ('SO', order)) | urlencode }}">
+                    {{ "Name" | tr }}
+                </a>
+            </th>
+            <th>{{ "Version" | tr }}</th>
+            <th>
+                {% if SB == "v" %}
+                    {% set order = reverse_order %}
+                {% else %}
+                    {% set order = SO %}
+                {% endif %}
+                <a href="/packages?{{ q | extend_query(('O', 0), ('SB', 'v'), ('SO', order)) | urlencode }}">
+                    {{ "Votes" | tr }}
+                </a>
+            </th>
+            <th>
+                {% if SB == "p" %}
+                    {% set order = reverse_order %}
+                {% else %}
+                    {% set order = SO %}
+                {% endif %}
+                <a href="/packages?{{ q | extend_query(('O', 0), ('SB', 'p'), ('SO', order)) | urlencode }}">{{ "Popularity" | tr }}</a><span title="{{ 'Popularity is calculated as the sum of all votes with each vote being weighted with a factor of %.2f per day since its creation.' | format(0.98) }}" class="hover-help"><sup>?</sup></span>
+            </th>
+            {% if request.user.is_authenticated() %}
+                <th>
+                    {% if SB == "w" %}
+                        {% set order = reverse_order %}
+                    {% else %}
+                        {% set order = SO %}
+                    {% endif %}
+                    <a href="/packages?{{ q | extend_query(('O', 0), ('SB', 'w'), ('SO', order)) | urlencode }}">
+                        {{ "Voted" | tr }}
+                    </a>
+                </th>
+                <th>
+                    {% if SB == "o" %}
+                        {% set order = reverse_order %}
+                    {% else %}
+                        {% set order = SO %}
+                    {% endif %}
+                    <a href="/packages?{{ q | extend_query(('O', 0), ('SB', 'o'), ('SO', order)) | urlencode }}">
+                        {{ "Notify" | tr }}
+                    </a>
+                </th>
+            {% endif %}
+            <th>{{ "Description" | tr }}</th>
+            <th>
+                {% if SB == "m" %}
+                    {% set order = reverse_order %}
+                {% else %}
+                    {% set order = SO %}
+                {% endif %}
+                <a href="/packages?{{ q | extend_query(('O', 0), ('SB', 'm'), ('SO', order)) | urlencode }}">
+                    {{ "Maintainer" | tr }}
+                </a>
+            </th>
+            <th>
+                {% if SB == "l" %}
+                    {% set order = reverse_order %}
+                {% else %}
+                    {% set order = SO %}
+                {% endif %}
+                <a href="/packages?{{ q | extend_query(('O', 0), ('SB', 'l'), ('SO', order)) | urlencode }}">
+                    {{ "Last Updated" | tr }}
+                </a>
+            </th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for pkg in packages %}
+            {% set flagged = pkg.OutOfDateTS %}
+            <tr>
+                {% if request.user.is_authenticated() %}
+                    <td>
+                        <input type="checkbox" name="IDs" value="{{ pkg.ID }}" />
+                    </td>
+                {% endif %}
+                <td>
+                    <a href="/packages/{{ pkg.Name }}">
+                        {{ pkg.Name }}
+                    </a>
+                </td>
+                {% if flagged %}
+                    <td class="flagged">{{ pkg.Version }}</td>
+                {% else %}
+                    <td>{{ pkg.Version }}</td>
+                {% endif %}
+                <td>{{ pkg.NumVotes }}</td>
+                <td>
+                    {{ pkg.Popularity | number_format(2) }}
+                </td>
+                {% if request.user.is_authenticated() %}
+                    <td>
+                        {% if pkg.Voted %}
+                            {{ "Yes" | tr }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if pkg.Notify %}
+                            {{ "Yes" | tr }}
+                        {% endif %}
+                    </td>
+                {% endif %}
+                <td class="wrap">{{ pkg.Description or '' }}</td>
+                <td>
+                    {% if pkg.Maintainer %}
+                        <a href="/account/{{ pkg.Maintainer }}">
+                            {{ pkg.Maintainer }}
+                        </a>
+                    {% else %}
+                        <span class="error">{{ "orphan" | tr }}</span>
+                    {% endif %}
+                </td>
+                {% if flagged %}
+                    <td class="flagged">{{ datetime_display(pkg.ModifiedTS) }}</td>
+                {% else %}
+                    <td>{{ datetime_display(pkg.ModifiedTS) }}</td>
+                {% endif %}
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>

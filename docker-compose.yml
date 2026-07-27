@@ -1,0 +1,353 @@
+---
+#
+# Docker service definitions for the aurweb project.
+#
+# Notable services:
+#   - `sharness` - Run sharness test suites
+#   - `pytest-mysql` - Run pytest suites with MariaDB
+#   - `pytest-sqlite` - Run pytest suites with SQLite
+#   - `test` - Run sharness, pytest-mysql and pytest-sqlite
+#   - `mariadb` - `port 13306` - MariaDB server for docker
+#   - `ca` - Certificate Authority generation
+#   - `git` - `port 2222` - Git over SSH server
+#   - `fastapi` - hypercorn service for aurweb's FastAPI app
+#   - `nginx` - `port 8444 (FastAPI)
+#     - You can reach `nginx` via FastAPI at `https://localhost:8444/`.
+#       CGit can be reached via the `/cgit/` request uri on either server.
+#
+# Copyright (C) 2021 aurweb Development
+# All Rights Reserved.
+services:
+  aurweb-image:
+    build: .
+    image: aurweb:latest
+
+  ca:
+    image: aurweb:latest
+    init: true
+    entrypoint: /docker/ca-entrypoint.sh
+    command: /docker/scripts/run-ca.sh
+    healthcheck:
+      test: "bash /docker/health/ca.sh"
+      interval: 3s
+    volumes:
+      - step:/root/.step
+
+  redis:
+    image: aurweb:latest
+    init: true
+    entrypoint: /docker/redis-entrypoint.sh
+    command: /docker/scripts/run-redis.sh
+    healthcheck:
+      test: "bash /docker/health/redis.sh"
+      interval: 3s
+    ports:
+      - "127.0.0.1:16379:6379"
+
+  mariadb:
+    image: aurweb:latest
+    init: true
+    entrypoint: /docker/mariadb-entrypoint.sh
+    command: /usr/bin/mariadbd-safe --datadir=/var/lib/mysql
+    ports:
+      # This will expose mariadbd on 127.0.0.1:13306 in the host.
+      # Ex: `mysql -uaur -paur -h 127.0.0.1 -P 13306 aurweb`
+      - "127.0.0.1:13306:3306"
+    volumes:
+      - mariadb_run:/var/run/mysqld # Bind socket in this volume.
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: "bash /docker/health/mariadb.sh"
+      interval: 3s
+
+  mariadb_init:
+    image: aurweb:latest
+    init: true
+    environment:
+      - AUR_CONFIG_IMMUTABLE=${AUR_CONFIG_IMMUTABLE:-0}
+    entrypoint: /docker/mariadb-init-entrypoint.sh
+    command: echo "MariaDB tables initialized."
+    volumes:
+      - mariadb_run:/var/run/mysqld
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+  mariadb_test:
+    # Test database.
+    image: aurweb:latest
+    init: true
+    environment:
+      - MARIADB_PRIVILEGED=1
+    entrypoint: /docker/mariadb-entrypoint.sh
+    command: /usr/bin/mariadbd-safe --datadir=/var/lib/mysql
+    ports:
+      # This will expose mariadbd on 127.0.0.1:13307 in the host.
+      # Ex: `mysql -uaur -paur -h 127.0.0.1 -P 13306 aurweb`
+      - "127.0.0.1:13307:3306"
+    volumes:
+      - mariadb_test_run:/var/run/mysqld # Bind socket in this volume.
+    healthcheck:
+      test: "bash /docker/health/mariadb.sh"
+      interval: 3s
+
+  git:
+    image: aurweb:latest
+    init: true
+    environment:
+      - AUR_CONFIG=/aurweb/conf/config
+      - SSH_CMDLINE=${SSH_CMDLINE:-ssh ssh://aur@localhost:2222}
+      - AUR_CONFIG_IMMUTABLE=${AUR_CONFIG_IMMUTABLE:-0}
+    entrypoint: /docker/git-entrypoint.sh
+    command: /docker/scripts/run-sshd.sh
+    ports:
+      - "2222:2222"
+    healthcheck:
+      test: "bash /docker/health/sshd.sh"
+      interval: 3s
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      mariadb_init:
+        condition: service_completed_successfully
+    volumes:
+      - mariadb_run:/var/run/mysqld
+
+  smartgit:
+    image: aurweb:latest
+    init: true
+    environment:
+      - AUR_CONFIG=/aurweb/conf/config
+    entrypoint: /docker/smartgit-entrypoint.sh
+    command: /docker/scripts/run-smartgit.sh
+    healthcheck:
+      test: "bash /docker/health/smartgit.sh"
+      interval: 3s
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+  cgit-fastapi:
+    image: aurweb:latest
+    init: true
+    environment:
+      - AUR_CONFIG=/aurweb/conf/config
+      - CGIT_CLONE_PREFIX=${AURWEB_FASTAPI_PREFIX}
+      - CGIT_CSS=/static/css/cgit.css
+    entrypoint: /docker/cgit-entrypoint.sh
+    command: /docker/scripts/run-cgit.sh 3000
+    healthcheck:
+      test: "bash /docker/health/cgit.sh 3000"
+      interval: 3s
+    depends_on:
+      git:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:13001:3000"
+    volumes:
+      - git_data:/aurweb/aur.git
+
+  cron:
+    image: aurweb:latest
+    init: true
+    environment:
+      - AUR_CONFIG=/aurweb/conf/config
+      - AUR_CONFIG_IMMUTABLE=${AUR_CONFIG_IMMUTABLE:-0}
+    entrypoint: /docker/cron-entrypoint.sh
+    command: /docker/scripts/run-cron.sh
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      mariadb_init:
+        condition: service_completed_successfully
+    volumes:
+      - ./aurweb:/aurweb/aurweb
+      - mariadb_run:/var/run/mysqld
+      - archives:/var/lib/aurweb/archives
+
+  fastapi:
+    image: aurweb:latest
+    init: true
+    environment:
+      - AUR_CONFIG=conf/config
+      - FASTAPI_BACKEND=${FASTAPI_BACKEND}
+      - FASTAPI_WORKERS=${FASTAPI_WORKERS}
+      - AURWEB_FASTAPI_PREFIX=${AURWEB_FASTAPI_PREFIX}
+      - AURWEB_SSHD_PREFIX=${AURWEB_SSHD_PREFIX}
+      - PROMETHEUS_MULTIPROC_DIR=/tmp_prometheus
+      - AUR_CONFIG_IMMUTABLE=${AUR_CONFIG_IMMUTABLE:-0}
+    entrypoint: /docker/fastapi-entrypoint.sh
+    command: /docker/scripts/run-fastapi.sh "${FASTAPI_BACKEND}"
+    healthcheck:
+      test: "bash /docker/health/fastapi.sh ${FASTAPI_BACKEND}"
+      interval: 3s
+    depends_on:
+      git:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      cron:
+        condition: service_started
+      mariadb:
+        condition: service_healthy
+      mariadb_init:
+        condition: service_completed_successfully
+      tempo:
+        condition: service_healthy
+    volumes:
+      - archives:/var/lib/aurweb/archives
+      - mariadb_run:/var/run/mysqld
+    ports:
+      - "127.0.0.1:18000:8000"
+
+  nginx:
+    image: aurweb:latest
+    init: true
+    environment:
+      - AUR_CONFIG=conf/config
+    entrypoint: /docker/nginx-entrypoint.sh
+    command: /docker/scripts/run-nginx.sh
+    ports:
+      - "127.0.0.1:8444:8444" # FastAPI
+    healthcheck:
+      test: "bash /docker/health/nginx.sh"
+      interval: 3s
+    depends_on:
+      ca:
+        condition: service_healthy
+      cgit-fastapi:
+        condition: service_healthy
+      smartgit:
+        condition: service_healthy
+      fastapi:
+        condition: service_healthy
+
+  sharness:
+    image: aurweb:latest
+    profiles: ["dev"]
+    init: true
+    environment:
+      - AUR_CONFIG=conf/config.sqlite
+      - LOG_CONFIG=logging.test.conf
+    entrypoint: /docker/sharness-entrypoint.sh
+    command: /docker/scripts/run-sharness.sh
+    stdin_open: true
+    tty: true
+    depends_on:
+      mariadb_test:
+        condition: service_healthy
+    volumes:
+      - ./data:/data
+      - ./aurweb:/aurweb/aurweb
+      - ./migrations:/aurweb/migrations
+      - ./test:/aurweb/test
+      - ./templates:/aurweb/templates
+
+  pytest-mysql:
+    image: aurweb:latest
+    profiles: ["dev"]
+    init: true
+    environment:
+      - AUR_CONFIG=conf/config
+      - TEST_RECURSION_LIMIT=${TEST_RECURSION_LIMIT}
+      - PROMETHEUS_MULTIPROC_DIR=/tmp_prometheus
+      - LOG_CONFIG=logging.test.conf
+    entrypoint: /docker/test-mysql-entrypoint.sh
+    command: /docker/scripts/run-pytests.sh clean
+    stdin_open: true
+    tty: true
+    depends_on:
+      mariadb_test:
+        condition: service_healthy
+    tmpfs:
+      - /tmp
+    volumes:
+      - mariadb_test_run:/var/run/mysqld
+      - ./data:/data
+      - ./aurweb:/aurweb/aurweb
+      - ./migrations:/aurweb/migrations
+      - ./test:/aurweb/test
+      - ./templates:/aurweb/templates
+
+  test:
+    image: aurweb:latest
+    profiles: ["dev"]
+    init: true
+    environment:
+      - AUR_CONFIG=conf/config
+      - TEST_RECURSION_LIMIT=${TEST_RECURSION_LIMIT}
+      - PROMETHEUS_MULTIPROC_DIR=/tmp_prometheus
+      - LOG_CONFIG=logging.test.conf
+    entrypoint: /docker/test-mysql-entrypoint.sh
+    command: /docker/scripts/run-tests.sh
+    stdin_open: true
+    tty: true
+    depends_on:
+      mariadb_test:
+        condition: service_healthy
+    volumes:
+      - mariadb_test_run:/var/run/mysqld
+      - ./data:/data
+      - ./aurweb:/aurweb/aurweb
+      - ./migrations:/aurweb/migrations
+      - ./test:/aurweb/test
+      - ./templates:/aurweb/templates
+
+  grafana:
+    # TODO: check if we need init: true
+    image: grafana/grafana:11.1.3
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_LOG_LEVEL=warn
+    # check if depends ar ecorrect, does stopping or restarting a child exit grafana?
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./docker/config/grafana/datasources:/etc/grafana/provisioning/datasources
+
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-remote-write-receiver
+      - --web.listen-address=prometheus:9090
+    healthcheck:
+      # TODO: check if there is a status route
+      test: "sh /docker/health/prometheus.sh"
+      interval: 3s
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./docker/config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./docker/health/prometheus.sh:/docker/health/prometheus.sh
+
+  tempo:
+    image: grafana/tempo:2.5.0
+    command:
+      - -config.file=/etc/tempo/config.yml
+    healthcheck:
+      # TODO: check if there is a status route
+      test: "sh /docker/health/tempo.sh"
+      interval: 3s
+    ports:
+      - "127.0.0.1:3200:3200"
+      - "127.0.0.1:4318:4318"
+    volumes:
+      - ./docker/config/tempo.yml:/etc/tempo/config.yml
+      - ./docker/health/tempo.sh:/docker/health/tempo.sh
+
+volumes:
+  mariadb_test_run: {}
+  mariadb_run: {} # Share /var/run/mysqld/mysqld.sock
+  mariadb_data: {} # Share /var/lib/mysql
+  git_data: {} # Share aurweb/aur.git
+  smartgit_run: {}
+  archives: {}
+  step: {}

@@ -1,0 +1,26 @@
+{% extends "partials/layout.html" %}
+
+{% block pageContent %}
+    <div class="box">
+        <h2>
+            {{ "Votes" | tr }} for
+            <a href="/pkgbase/{{ pkgbase.Name }}">
+                {{ pkgbase.Name }}
+            </a>
+        </h2>
+
+        <div class="boxbody">
+            <ul>
+                {% for username, vote_ts in voters %}
+                    <li>
+                        <a href="/account/{{ username }}">
+                            {{ username }}
+                        </a>
+
+                        ({{ datetime_display(vote_ts) }})
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+{% endblock %}
